@@ -139,7 +139,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="TCP programming.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="server.cpp" />
+    <ClCompile Include="client.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Tcp Programming.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
