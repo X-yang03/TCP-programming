@@ -8,6 +8,20 @@ sockaddr_in server_addr;
 
 char ID[21] = { 0 };
 
+bool check_valid(char* str) {
+	int a, b, c, d;
+	if (4 == sscanf(str, "%d.%d.%d.%d", &a, &b, &c, &d)) {
+		if (0 <= a && a <= 255
+			&& 0 <= b && b <= 255
+			&& 0 <= c && c <= 255
+			&& 0 <= d && d <= 255) {
+			return true;
+		}
+		
+	}
+	return false;
+}
+
 DWORD WINAPI recv_from_server(LPVOID lpParam) {
 	SOCKET* sock = (SOCKET*)lpParam;
 	while (true) {
@@ -18,7 +32,7 @@ DWORD WINAPI recv_from_server(LPVOID lpParam) {
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED);  //提示字体为红色
 			std::cout << "Server Shut Down! You will be reloacated to the Menu in 5 seconds" << std::endl;
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);		//还原
-			Sleep(5);
+			Sleep(5000);
 			runningState = 0;	//置零
 			closesocket(*sock);
 		}
@@ -78,7 +92,7 @@ DWORD WINAPI recv_from_server(LPVOID lpParam) {
 		
 
 		recv_buf[recv_bytes] = 0;
-		std::cout << recv_buf << std::endl;
+		std::cout <<std::endl<< recv_buf << std::endl;
 	}
 
 }
@@ -102,6 +116,15 @@ DWORD WINAPI send_to_server(LPVOID lpParam) {
 
 		while (strlen(send_buf) == 0) {
 			std::cin.getline(send_buf, send_len, '\n');
+		}
+
+		if (!strcmp(send_buf, help)) {
+			std::cout << helps << std::endl;
+			continue;
+		}
+		else if (!strcmp(send_buf, IP)) {
+			system("ipconfig");
+			continue;
 		}
 		
 		if (send(*sock, send_buf, strlen(send_buf), 0) == SOCKET_ERROR) {
@@ -132,12 +155,25 @@ int _Client::ClientRegister() {
 		std::cout << "socket error: " << strerror(errno) << " (error:" << errno << ")" << std::endl;
 		return 1;
 	}
+	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY| FOREGROUND_GREEN );
+	std::cout << "Input the address of the channel (or type 'd' to use the default address):";
+	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
+	char addr[20] = { 0 };
+	std::cin >> addr;
 
-	
+	if (strcmp(addr, "d") == 0) {
+		strcpy(addr, IP_addr);
+	}
+	else if (!check_valid(addr)) { //地址非法，将用默认地址
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED );
+		std::cout << "Invalid address! Using default address to connect." << std::endl;
+		strcpy(addr, IP_addr);
+	}
+	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(8888);
 	//server_addr.sin_addr.S_un.S_addr = inet_addr(IP_addr);
-	inet_pton(AF_INET, IP_addr, &server_addr.sin_addr.S_un.S_addr);
+	inet_pton(AF_INET, addr, &server_addr.sin_addr.S_un.S_addr);
 
 	SOCKET client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (client_socket == INVALID_SOCKET)
@@ -146,11 +182,15 @@ int _Client::ClientRegister() {
 		return 1;
 	}
 
+
+
+	//std::cout << "Input the address you want to connect to:";
+
+
 	if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == INVALID_SOCKET) {
 		std::cout << "fail to connect" << std::endl;
 		return 1;
 	}
-
 
 	
 	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN);
@@ -171,6 +211,7 @@ int _Client::ClientRegister() {
 		else if (strcmp(ans, reject) == 0) {
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED );
 			std::cout << "This ID is already used by others!" << std::endl;
+			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN);
 		}
 	}
 	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);

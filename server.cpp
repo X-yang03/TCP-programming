@@ -11,11 +11,9 @@ struct __Client {
 
 typedef struct __Client client_entry;
 
-//client_entry client_list[max_clients];
 
 std::list<client_entry> client_list;
 
-//std::list<HANDLE>   client_handle;
 
 int          client_num = 0;    //总共的client数量
 int          client_no = 0;     //第i个连接的client，用于标识client
@@ -38,21 +36,31 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             return 0;
         }
 
-        if (recv_bytes == SOCKET_ERROR) {
+        if (recv_bytes == SOCKET_ERROR) {   //两种情况，一种是直接客户端关闭，一种是被踢出
             char error_info[100];
             sprintf(error_info, ".dic %s",client->name);
-            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED);
-            printf("\nRecieving error from client %s, which is no longer in the conversation!\n", client->name);
-            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
+            int flag = 0;  //flag 用于判断该client是否被踢出
             for (auto it = client_list.begin(); it != client_list.end(); it++) {    //删去该出错用户
-                if (it->client_no == client->client_no) {
+
+                if (it->self->client_no == client->client_no) {
+                    if (it->client_no == -1) {  //被剔除用户
+                        flag = 1;
+                    }
                     closesocket(it->client_socket);
                     client_list.erase(it);
                     client_num--;
                     break;
                 }
             }
+            if (flag) {  //若是被踢出，则直接返回
+                
+                return 0;
+            }
+
+            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED);
+            printf("\nRecieving error from client %s, which is no longer in the conversation!\n", client->name);
+            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
             for (auto it = client_list.begin(); it != client_list.end(); it++) {  //转发至其他客户机
                     send(it->client_socket,error_info, strlen(error_info), 0);
@@ -91,6 +99,22 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             return 0;
         }
 
+        if (strcmp(recv_buf, state) == 0) {
+            char state_info[send_len] = { 0 };
+            char server_info[50] = { 0 };
+            sprintf(server_info, "Server\t\t%s\n", Server_ID);
+            strcpy(state_info, server_info);
+            strcat(state_info, "-----------------------------\n");
+            strcat(state_info, "Client Code\t\tClient ID\n");
+            for (auto it = client_list.begin(); it != client_list.end(); it++) {
+                //std::cout << it->client_no << "\t\t\t" << it->name << std::endl;
+                char single_info[50] = { 0 };
+                sprintf(single_info, "%d\t\t\t%s\n", it->client_no, it->name);
+                strcat(state_info, single_info);
+            }
+            send(client->client_socket, state_info, strlen(state_info), 0);  //将信息返回给client
+            continue;
+        }
 
         strcat(client_msg, recv_buf);
 
@@ -144,9 +168,56 @@ DWORD WINAPI host_send(LPVOID lpParam) {
             client_no = 0;
             return 0;
         }
-    
+
+        if (send_buf[0] == '.') {
+            char com[10] = { 0 };
+            char target[21] = { 0 };
+            if (strcmp(send_buf, state) == 0) {
+                SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
+                std::cout << "Client code\t\tClient ID" << std::endl;
+                SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN);
+
+                for (auto it = client_list.begin(); it != client_list.end(); it++) {
+                    std::cout << it->client_no << "\t\t\t" << it->name << std::endl;
+                }
+                SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+                continue;  //.state不需要传递给客户机
+            }
+            else if (sscanf(send_buf, "%s %s", com, target) && !strcmp(com, kick)) { //输入.kick sb.
+                int flag = 1;
+                for (auto it = client_list.begin(); it != client_list.end(); it++) {
+                    if (strcmp(it->name, target) == 0) {
+                        sprintf(send_msg, "%s is kicked out of the channel!", it->name);
+                        std::cout << send_msg << std::endl;
+                        strcpy(send_buf, "\0");
+                        it->client_no = -1; //被踢掉的序号设为-1
+                        closesocket(it->client_socket);  //通过关闭socket，该socket对应的recv_thread会进入SOCKET_ERROR处理函数，进一步从链表中删去client_entry,并释放资源
+                        flag = 0;
+                    }
+                }
+                if (flag) {
+                    printf("No such client with ID %s\n", target);
+                    continue;
+                }
+                
+
+            }
+            else if (!strcmp(send_buf,help)) {
+                std::cout << helps << std::endl;
+                continue;
+
+            }
+            else if (!strcmp(send_buf, IP)) {
+                system("ipconfig");
+                continue;
+            }
+        }
+        
+         
         strcat(send_msg, send_buf);
         for (auto it = client_list.begin(); it != client_list.end(); it++) {  
+            if (it->client_no == -1)
+                continue;
             send(it->client_socket, send_msg, strlen(send_msg), 0);
         }
 
@@ -156,7 +227,6 @@ DWORD WINAPI host_send(LPVOID lpParam) {
 
 int _Server::StartServer()
 {
-    std::cout << "Server Started!\n";
     runningState = 1;
      
     WORD socketVer = MAKEWORD(2, 2);  //2.2版本
@@ -179,8 +249,8 @@ int _Server::StartServer()
     sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;       //IPV4
     server_addr.sin_port = htons(8888);     //PORT:8888,htons将主机小端字节转换为网络的大端字节
-    //server_addr.sin_addr.S_un.S_addr = INADDR_ANY;     //type(sin_addr) == in_addr
-    inet_pton(AF_INET, IP_addr, &server_addr.sin_addr.S_un.S_addr);
+    server_addr.sin_addr.S_un.S_addr = INADDR_ANY;     //type(sin_addr) == in_addr
+    //inet_pton(AF_INET, IP_addr, &server_addr.sin_addr.S_un.S_addr);
 
     if (bind(Server, (LPSOCKADDR)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) { //将Server与server_addr绑定
         std::cout << "bind error!" << std::endl;
@@ -227,7 +297,7 @@ int _Server::StartServer()
 
         if (runningState == 0) {  //当服务端关闭后，client_socket == INVALID_SOCKET,会运行至此，成功退出
             std::cout << "Host Aborted!" << std::endl;
-            WSACleanup();
+           // WSACleanup();
             return 0;
         }
 
@@ -246,14 +316,12 @@ int _Server::StartServer()
             for (auto it = client_list.begin(); it != client_list.end(); it++) {
                 if (strcmp(it->name, name) == 0) {  //ID重复
                     strcpy(ans, reject);
-                    std::cout << ans << std::endl;
                     send(client_socket, ans, strlen(ans), 0);
                     break;
                 }
             }
             if (strcmp(name, Server_ID) == 0) { //与主机的Server_ID重复
                 strcpy(ans, reject);
-                std::cout << ans << std::endl;
                 send(client_socket, ans, strlen(ans), 0);
             }
 
@@ -262,7 +330,7 @@ int _Server::StartServer()
             }
 
         }
-        std::cout << ans << std::endl;
+
         if (send(client_socket, ans, strlen(ans), 0) != SOCKET_ERROR) {
             char client_addr[100] = { 0 };
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN);
@@ -273,6 +341,7 @@ int _Server::StartServer()
         else {
             continue;
         }
+        //send(client_socket, helps, strlen(helps), 0);
        
         client_entry* entry = new client_entry;
         entry->client_socket = client_socket;
