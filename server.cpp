@@ -29,10 +29,10 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
         client_entry* client = (client_entry*)lpParam;
         char recv_buf[send_len] = { 0 };
         char client_msg[send_len] = { 0 };
-        strcpy(client_msg, client->name);
+        strcpy(client_msg, client->name);   //msg头
         strcat(client_msg, " : ");
         int recv_bytes = recv(client->client_socket, recv_buf,sizeof(recv_buf), 0);
-        if (runningState == 0) {    //服务端输入.quit,直接返回
+        if (runningState == 0) {    //服务端输入.quit,直接返回，销毁线程
             return 0;
         }
 
@@ -59,7 +59,7 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             }
 
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED);
-            printf("\nRecieving error from client %s, which is no longer in the conversation!\n", client->name);
+            printf("\nRecieving error from client %s, which is no longer in the conversation!\n", client->name); //异常断开
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
             for (auto it = client_list.begin(); it != client_list.end(); it++) {  //转发至其他客户机
@@ -70,7 +70,7 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
         }
         
         if (recv_bytes >= send_len) {
-            std::cout << "out of reach:" <<recv_bytes<< std::endl;
+            std::cout << "Exceeded Maximum:" <<recv_bytes<< std::endl;
             recv_bytes = send_len-1;
             recv_buf[recv_bytes] = 0;
         }
@@ -99,7 +99,7 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             return 0;
         }
 
-        if (strcmp(recv_buf, state) == 0) {
+        if (strcmp(recv_buf, state) == 0) { //用户端想查询state
             char state_info[send_len] = { 0 };
             char server_info[50] = { 0 };
             sprintf(server_info, "Server\t\t%s\n", Server_ID);
@@ -123,8 +123,8 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
                 send(it->client_socket, client_msg, strlen(client_msg), 0);
         }
 
-        //std::cout << "recieve from:" << client->client_no << std::endl;
-        std::cout << client_msg << std::endl;
+
+        std::cout<<std::endl << client_msg << std::endl;
 
     }
     return 0;
@@ -169,10 +169,10 @@ DWORD WINAPI host_send(LPVOID lpParam) {
             return 0;
         }
 
-        if (send_buf[0] == '.') {
+        if (send_buf[0] == '.') { //主机输入指令
             char com[10] = { 0 };
             char target[21] = { 0 };
-            if (strcmp(send_buf, state) == 0) {
+            if (strcmp(send_buf, state) == 0) {   //.state
                 SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
                 std::cout << "Client code\t\tClient ID" << std::endl;
                 SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN);
@@ -265,7 +265,7 @@ int _Server::StartServer()
               <<inet_ntop(AF_INET,&server_addr.sin_addr,host_addr,sizeof(host_addr))
               <<":"<<ntohs(server_addr.sin_port) << std::endl;
     
-    std::cout << "Server name (less than 20 character):" << std::endl;
+    std::cout << "Server name (less than 20 character):" ;
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY |  FOREGROUND_GREEN | FOREGROUND_BLUE);
     std::cin >> std::setw(21) >> Server_ID;
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY |  FOREGROUND_GREEN );
@@ -297,7 +297,7 @@ int _Server::StartServer()
 
         if (runningState == 0) {  //当服务端关闭后，client_socket == INVALID_SOCKET,会运行至此，成功退出
             std::cout << "Host Aborted!" << std::endl;
-           // WSACleanup();
+            WSACleanup();
             return 0;
         }
 
@@ -308,7 +308,7 @@ int _Server::StartServer()
 
         char name[21] = { 0 };
         char ans[10] = { 0 };
-        while (true)
+        while (true)  //直到用户名合法
         {
             int name_len =  recv(client_socket, name, sizeof(name), 0);  //建立连接后先接受ID
             name[name_len] = 0;
