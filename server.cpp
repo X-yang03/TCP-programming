@@ -229,6 +229,7 @@ int _Server::StartServer()
 {
     runningState = 1;
      
+    //Clog.open("./Channel Log.log");
     WORD socketVer = MAKEWORD(2, 2);  //2.2版本
     WSADATA wsaData;
 
@@ -264,6 +265,8 @@ int _Server::StartServer()
     std::cout << "Host Address: " 
               <<inet_ntop(AF_INET,&server_addr.sin_addr,host_addr,sizeof(host_addr))
               <<":"<<ntohs(server_addr.sin_port) << std::endl;
+
+    
     
     std::cout << "Server name (less than 20 character):" ;
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY |  FOREGROUND_GREEN | FOREGROUND_BLUE);
