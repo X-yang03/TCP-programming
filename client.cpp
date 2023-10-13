@@ -30,9 +30,9 @@ DWORD WINAPI recv_from_server(LPVOID lpParam) {
 
 		if (strcmp(recv_buf, quit) == 0) {			//收到服务端的.quit
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED);  //提示字体为红色
-			std::cout << "Server Shut Down! You will be reloacated to the Menu in 5 seconds" << std::endl;
+			std::cout << "Server Shut Down! You will be reloacated to the Menu in 3 seconds" << std::endl;
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);		//还原
-			Sleep(5000);
+			Sleep(3000);
 			runningState = 0;	//置零
 			closesocket(*sock);
 		}
@@ -74,10 +74,12 @@ DWORD WINAPI recv_from_server(LPVOID lpParam) {
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 			
 			if (connect(*sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == INVALID_SOCKET) {
-				std::cout << "Fail!" << std::endl;
+				std::cout << "Fail! You will be reloacated to the Menu in 3 seconds" << std::endl;
+				Sleep(3000);
 				runningState = 0;
 				CloseHandle(recv_handle);
 				closesocket(*sock);
+				
 				return 1;	
 			}
 
@@ -181,6 +183,7 @@ int _Client::ClientRegister() {
 
 	if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == INVALID_SOCKET) {
 		std::cout << "Fail to connect" << std::endl;
+		Sleep(3000);
 		return 1;
 	}
 	

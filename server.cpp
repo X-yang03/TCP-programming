@@ -30,7 +30,7 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
         char recv_buf[send_len] = { 0 };
         char client_msg[send_len] = { 0 };
         strcpy(client_msg, client->name);   //msg头
-        strcat(client_msg, " : ");
+        strcat(client_msg, " : \t");
         int recv_bytes = recv(client->client_socket, recv_buf,sizeof(recv_buf), 0);
         if (runningState == 0) {    //服务端输入.quit,直接返回，销毁线程
             return 0;
@@ -59,7 +59,7 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             }
 
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED);
-            printf("\nRecieving error from client %s, which is no longer in the conversation!\n", client->name); //异常断开
+            printf("\nRecieving error from client %s, which is no longer in the channel!\n", client->name); //异常断开
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
             for (auto it = client_list.begin(); it != client_list.end(); it++) {  //转发至其他客户机
@@ -137,7 +137,7 @@ DWORD WINAPI host_send(LPVOID lpParam) {
         char send_msg[send_len] = { 0 };
 
         strcpy(send_msg, Server_ID);
-        strcat(send_msg, " : ");
+        strcat(send_msg, " : \t");
         while (!_kbhit()) {
 
         }
