@@ -1,4 +1,7 @@
 ﻿#include"Tcp Programming.h"
+#include <WinSock.h>
+#include <IPHlpApi.h>
+#pragma comment(lib, "Iphlpapi.lib")
 
 extern bool runningState;
 
@@ -22,6 +25,38 @@ SOCKET Server;
 
 char Server_ID[30];
 
+char IPV4[20] = { 0 };
+
+//获取ipv4地址
+int get_IPV4() {
+    int pos = 8; //WLAN网卡在第8项
+    int nowPos = 0;
+    PIP_ADAPTER_INFO pIpAdapterInfo = (PIP_ADAPTER_INFO)malloc(sizeof(IP_ADAPTER_INFO));
+    unsigned long stSize = sizeof(IP_ADAPTER_INFO);
+    int nRel = 0;
+    nRel = GetAdaptersInfo(pIpAdapterInfo, &stSize);
+    if (ERROR_BUFFER_OVERFLOW == nRel) {
+        free(pIpAdapterInfo);
+        pIpAdapterInfo = (PIP_ADAPTER_INFO)malloc(stSize);
+        nRel = GetAdaptersInfo(pIpAdapterInfo, &stSize);
+    }
+    
+    if (ERROR_SUCCESS == nRel) {
+        while (pIpAdapterInfo) {
+            if (nowPos == pos) {
+                sprintf(IPV4, pIpAdapterInfo->IpAddressList.IpAddress.String);
+                return 0;
+            }
+            pIpAdapterInfo = pIpAdapterInfo->Next;
+            nowPos++;
+        }
+    }
+    if (pIpAdapterInfo) {
+        free(pIpAdapterInfo);
+    }
+    return 1;
+}
+
 DWORD WINAPI client_thread(LPVOID lpParam) {  
     
     //Create Thread中的lpStartAddress：指向线程函数的指针，函数名称没有限制，但是必须有形式：DWORD WINAPI ThreadProc(LPVOID lpParam)
@@ -36,7 +71,8 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             return 0;
         }
 
-        if (recv_bytes == SOCKET_ERROR) {   //两种情况，一种是直接客户端关闭，一种是被踢出
+        //两种情况，一种是直接客户端关闭，一种是被踢出
+        if (recv_bytes == SOCKET_ERROR) {  
             char error_info[100];
             sprintf(error_info, ".dic %s",client->name);
 
@@ -44,7 +80,7 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             for (auto it = client_list.begin(); it != client_list.end(); it++) {    //删去该出错用户
 
                 if (it->self->client_no == client->client_no) {
-                    if (it->client_no == -1) {  //被剔除用户
+                    if (it->client_no == -1) {  //被剔除用户，对应的list中的项的no是-1
                         flag = 1;
                     }
                     closesocket(it->client_socket);
@@ -75,7 +111,8 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             recv_buf[recv_bytes] = 0;
         }
 
-        if (strcmp(recv_buf, quit) == 0) {   //收到来自该client线程的.quit
+        //收到来自该client线程的.quit
+        if (strcmp(recv_buf, quit) == 0) {   
             char quit_info[100];
             sprintf(quit_info, ".quit %s", client->name);
             std::cout << quit_info << std::endl;
@@ -99,7 +136,8 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             return 0;
         }
 
-        if (strcmp(recv_buf, state) == 0) { //用户端想查询state
+        //用户端想查询state
+        if (strcmp(recv_buf, state) == 0) { 
             char state_info[send_len] = { 0 };
             char server_info[50] = { 0 };
             sprintf(server_info, "Server\t\t%s\n", Server_ID);
@@ -122,9 +160,9 @@ DWORD WINAPI client_thread(LPVOID lpParam) {
             if(it->client_no != client->client_no)
                 send(it->client_socket, client_msg, strlen(client_msg), 0);
         }
+        printf("\n%s\n", client_msg);
 
-
-        std::cout<<std::endl << client_msg << std::endl;
+        //std::cout<<std::endl << client_msg << std::endl;
 
     }
     return 0;
@@ -149,6 +187,13 @@ DWORD WINAPI host_send(LPVOID lpParam) {
             std::cin.getline(send_buf, send_len, '\n');
         }
 
+        //输入超限
+        if (strlen(send_buf) >= send_len) {
+            std::cout << "Exceeded Maximal Length!" << std::endl;
+            continue;
+        }
+
+        //主机输入.quit
         if (strcmp(send_buf, quit) == 0) {   //主机输入.quit
             runningState = 0;
 
@@ -169,6 +214,7 @@ DWORD WINAPI host_send(LPVOID lpParam) {
             return 0;
         }
 
+        //主机输入指令
         if (send_buf[0] == '.') { //主机输入指令
             char com[10] = { 0 };
             char target[21] = { 0 };
@@ -228,7 +274,9 @@ DWORD WINAPI host_send(LPVOID lpParam) {
 int _Server::StartServer()
 {
     runningState = 1;
-     
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
+    get_IPV4();
+    std::cout<<"Your IPV4 address:" << IPV4 << std::endl;
     //Clog.open("./Channel Log.log");
     WORD socketVer = MAKEWORD(2, 2);  //2.2版本
     WSADATA wsaData;
@@ -247,10 +295,31 @@ int _Server::StartServer()
         return 1;
     }
 
+
+
     sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;       //IPV4
     server_addr.sin_port = htons(8888);     //PORT:8888,htons将主机小端字节转换为网络的大端字节
-    server_addr.sin_addr.S_un.S_addr = INADDR_ANY;     //type(sin_addr) == in_addr
+
+    //选择服务端IP
+    while (true) {
+        char T;
+        std::cout << "Input the address of the channel('d' for default address and 'i' for IPV4 address):" << std::endl;
+        std::cin >> T;
+        if (T == 'd') {
+            server_addr.sin_addr.S_un.S_addr = INADDR_ANY;     //type(sin_addr) == in_addr
+        }
+        else if (T == 'i') {
+            inet_pton(AF_INET, IPV4, &server_addr.sin_addr.S_un.S_addr);
+        }
+        else {
+            SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED);
+            std::cout << "Invalid input, using default address!" << std::endl;
+            inet_pton(AF_INET, IPV4, &server_addr.sin_addr.S_un.S_addr);
+        }
+        break;
+    }
+    //server_addr.sin_addr.S_un.S_addr = INADDR_ANY;     //type(sin_addr) == in_addr
     //inet_pton(AF_INET, IP_addr, &server_addr.sin_addr.S_un.S_addr);
 
     if (bind(Server, (LPSOCKADDR)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) { //将Server与server_addr绑定
@@ -285,16 +354,13 @@ int _Server::StartServer()
 
     CreateThread(NULL, 0, host_send, 0,0, NULL);    //开启一个发送线程
 
-    while (true) {          //Server会不断循环，等待新客户机连接
+    //Server会不断循环，等待新客户机连接
+    while (true) {          
 
         sockaddr_in remote_addr;
 
         int addrlen = sizeof(remote_addr);
 
-        if (client_num == max_clients) {
-            std::cout << "Exceeded maximum!" << std::endl;
-            return 0;
-        }
 
         SOCKET client_socket = accept(Server, (SOCKADDR*)&remote_addr, &addrlen);
 
@@ -302,6 +368,11 @@ int _Server::StartServer()
             std::cout << "Host Aborted!" << std::endl;
             WSACleanup();
             return 0;
+        }
+
+        if (client_num == max_clients) {
+            std::cout << "Exceeded maximum!" << std::endl;
+            continue;
         }
 
         if (client_socket == INVALID_SOCKET) {
@@ -337,7 +408,7 @@ int _Server::StartServer()
         if (send(client_socket, ans, strlen(ans), 0) != SOCKET_ERROR) {
             char client_addr[100] = { 0 };
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN);
-            std::cout << "A new connection from: " << inet_ntop(AF_INET, &remote_addr.sin_addr, client_addr, sizeof(client_addr)) << std::endl;
+            std::cout << "A new connection from: " << inet_ntop(AF_INET, &remote_addr.sin_addr, client_addr, sizeof(client_addr)) << ":" << ntohs(remote_addr.sin_port) << std::endl; 
             SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
         }

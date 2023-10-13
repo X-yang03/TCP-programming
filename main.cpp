@@ -19,8 +19,8 @@ int main() {
 	char command[10];
 	while (true) {
 		std::cin >> command;
-		system("cls");
-		print_menu();
+		/*system("cls");
+		print_menu();*/
 		if (strcmp(command,startserver) == 0) {
 			//StartServer();
 			_Server server;
@@ -46,6 +46,9 @@ int main() {
 		else if (strcmp(command, IP) == 0) {
 			system("ipconfig");
 		}
+		/*else {
+			std::cout << "Not a legal command!" << std::endl;
+		}*/
 	}
 }
 

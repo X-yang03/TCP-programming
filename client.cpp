@@ -120,6 +120,11 @@ DWORD WINAPI send_to_server(LPVOID lpParam) {  //读线程
 			std::cin.getline(send_buf, send_len, '\n');	//读入整行
 		}
 
+		if (strlen(send_buf) >= send_len) {
+			std::cout << "Exceeded Maximal Length!" << std::endl;
+			continue;
+		}
+
 		if (!strcmp(send_buf, help)) {	//.help
 			std::cout << helps << std::endl;
 			continue;
@@ -174,15 +179,16 @@ int _Client::ClientRegister() {
 	server_addr.sin_port = htons(8888);
 	inet_pton(AF_INET, addr, &server_addr.sin_addr.S_un.S_addr);
 
-	SOCKET client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (client_socket == INVALID_SOCKET)
+	SOCKET server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (server_socket == INVALID_SOCKET)
 	{
 		std::cout << "socket error !" << std::endl;
 		return 1;
 	}
 
-	if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == INVALID_SOCKET) {
-		std::cout << "Fail to connect" << std::endl;
+	//向server_socket发起连接
+	if (connect(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == INVALID_SOCKET) { 
+		std::cout << "Fail to connect. You will be relocated to the menu in 3 seconds" << std::endl;
 		Sleep(3000);
 		return 1;
 	}
@@ -194,9 +200,9 @@ int _Client::ClientRegister() {
 		std::cout << "Your ID (less than 20 character):" << std::endl;
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
 		std::cin >>std::setw(21)>> ID;
-		send(client_socket, ID, strlen(ID), 0);
+		send(server_socket, ID, strlen(ID), 0);
 		char ans[10] = { 0 };
-		recv(client_socket, ans, sizeof(ans), 0);
+		recv(server_socket, ans, sizeof(ans), 0);
 		if (strcmp(ans, allow) == 0) {
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN);
 			std::cout << "Connection set up!" << std::endl;
@@ -211,10 +217,10 @@ int _Client::ClientRegister() {
 	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
 	recv_handle = CreateThread(NULL, 0, recv_from_server
-		, &(client_socket), 0, NULL);
+		, &(server_socket), 0, NULL);
 
 	send_handle = CreateThread(NULL, 0, send_to_server
-		, &(client_socket), 0, NULL);
+		, &(server_socket), 0, NULL);
 
 
 	while (true) {
