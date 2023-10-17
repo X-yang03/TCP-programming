@@ -28,34 +28,36 @@ char Server_ID[30];
 char IPV4[20] = { 0 };
 
 //获取ipv4地址
-int get_IPV4() {
-    int pos = 8; //WLAN网卡在第8项
-    int nowPos = 0;
-    PIP_ADAPTER_INFO pIpAdapterInfo = (PIP_ADAPTER_INFO)malloc(sizeof(IP_ADAPTER_INFO));
-    unsigned long stSize = sizeof(IP_ADAPTER_INFO);
-    int nRel = 0;
-    nRel = GetAdaptersInfo(pIpAdapterInfo, &stSize);
-    if (ERROR_BUFFER_OVERFLOW == nRel) {
-        free(pIpAdapterInfo);
-        pIpAdapterInfo = (PIP_ADAPTER_INFO)malloc(stSize);
-        nRel = GetAdaptersInfo(pIpAdapterInfo, &stSize);
-    }
-    
-    if (ERROR_SUCCESS == nRel) {
-        while (pIpAdapterInfo) {
-            if (nowPos == pos) {
-                sprintf(IPV4, pIpAdapterInfo->IpAddressList.IpAddress.String);
-                return 0;
+void get_IPV4() {
+    IP_ADAPTER_ADDRESSES* adapterAddresses = NULL;
+    ULONG bufferSize = 0;
+
+    if (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, NULL, adapterAddresses, &bufferSize) == ERROR_BUFFER_OVERFLOW) {
+        adapterAddresses = (IP_ADAPTER_ADDRESSES*)malloc(bufferSize);
+        if (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, NULL, adapterAddresses, &bufferSize) == NO_ERROR) {
+            IP_ADAPTER_ADDRESSES* adapter = adapterAddresses;
+            while (adapter) {
+                if (adapter->OperStatus == IfOperStatusUp && adapter->IfType == IF_TYPE_IEEE80211) {
+                    IP_ADAPTER_UNICAST_ADDRESS* unicast = adapter->FirstUnicastAddress;
+                    while (unicast) {
+                        sockaddr* sockaddr = unicast->Address.lpSockaddr;
+                        if (sockaddr->sa_family == AF_INET) {
+                            char ip[INET_ADDRSTRLEN];
+                            sockaddr_in* ipv4 = (sockaddr_in*)sockaddr;
+                            inet_ntop(AF_INET, &(ipv4->sin_addr), ip, INET_ADDRSTRLEN);
+                            //std::cout << "IPv4 Address: " << ip << std::endl;
+                            sprintf(IPV4, ip);
+                        }
+                        unicast = unicast->Next;
+                    }
+                }
+                adapter = adapter->Next;
             }
-            pIpAdapterInfo = pIpAdapterInfo->Next;
-            nowPos++;
         }
+        free(adapterAddresses);
     }
-    if (pIpAdapterInfo) {
-        free(pIpAdapterInfo);
-    }
-    return 1;
 }
+
 
 DWORD WINAPI client_thread(LPVOID lpParam) {  
     
@@ -233,7 +235,7 @@ DWORD WINAPI host_send(LPVOID lpParam) {
                 int flag = 1;
                 for (auto it = client_list.begin(); it != client_list.end(); it++) {
                     if (strcmp(it->name, target) == 0) {
-                        sprintf(send_msg, "%s is kicked out of the channel!", it->name);
+                        sprintf(send_msg, ".kick %s", it->name);
                         std::cout << send_msg << std::endl;
                         strcpy(send_buf, "\0");
                         it->client_no = -1; //被踢掉的序号设为-1
@@ -254,7 +256,8 @@ DWORD WINAPI host_send(LPVOID lpParam) {
 
             }
             else if (!strcmp(send_buf, IP)) {
-                system("ipconfig");
+                //system("ipconfig");
+                printf("your IPV4 address: %s\n", IPV4);
                 continue;
             }
         }
@@ -339,7 +342,14 @@ int _Server::StartServer()
     
     std::cout << "Server name (less than 20 character):" ;
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY |  FOREGROUND_GREEN | FOREGROUND_BLUE);
-    std::cin >> std::setw(21) >> Server_ID;
+    while (true) {
+        std::cin >> std::setw(21) >> Server_ID;
+        if (Server_ID[0] == '.') {
+            std::cout << "Invalid ID, input again!" << std::endl;//不能以.开头
+            continue;
+        }
+        break;
+    }
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY |  FOREGROUND_GREEN );
 
     if (listen(Server, max_clients) == SOCKET_ERROR)
@@ -398,7 +408,10 @@ int _Server::StartServer()
                 strcpy(ans, reject);
                 send(client_socket, ans, strlen(ans), 0);
             }
-
+            if (name[0] == '.') { //不可以.开头
+                strcpy(ans, reject);
+                send(client_socket, ans, strlen(ans), 0);
+            }
             if (strcmp(ans, allow) == 0) {  //通过所有检测，用户名称合法
                 break;
             }

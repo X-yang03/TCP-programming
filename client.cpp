@@ -64,6 +64,12 @@ DWORD WINAPI recv_from_server(LPVOID lpParam) {
 				SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 				continue;
 			}
+			else if (strcmp(com, kick) == 0) {	//用户被踢出
+				SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED);
+				printf("Client %s is kicked out of the channel!\n", name);
+				SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+				continue;
+			}
 
 		}
 
@@ -210,7 +216,7 @@ int _Client::ClientRegister() {
 		}
 		else if (strcmp(ans, reject) == 0) {
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_RED );
-			std::cout << "This ID is already used by others!" << std::endl;
+			std::cout << "This ID is already used by others or this is an illegal ID!" << std::endl;
 			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_INTENSITY | FOREGROUND_GREEN);
 		}
 	}
@@ -230,5 +236,6 @@ int _Client::ClientRegister() {
 	}
 	
 	WSACleanup();
+	return 0;
 
 }
